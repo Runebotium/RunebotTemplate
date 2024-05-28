@@ -1,52 +1,56 @@
 plugins {
 	id 'java'
+	id 'maven-publish'
 }
+
+def pluginName = 'RuneBotClient'
+def pluginVersion = '1.0-SNAPSHOT'
 
 repositories {
 	mavenLocal()
-	maven {url = 'https://repo.runelite.net/'}
-	maven {
-
-		url = 'https://maven.pkg.github.com/SkylerPIlot/RBEVPmvn'
-		credentials {
-			username = System.getenv("USERNAME")
-			password = System.getenv("TOKEN")
-		}
-	}
+	maven { url = 'https://repo.runelite.net/' }
+	maven { url = 'https://repo.leigham.uk/releases/runebotclientapi' }
 	mavenCentral()
 }
 
 def runeLiteVersion = 'latest.release'
+def rbapiVersion = 'latest.release'
 
 dependencies {
-	compileOnly group: 'net.runelite', name:'client', version: runeLiteVersion
-
 	compileOnly 'org.projectlombok:lombok:1.18.20'
 	annotationProcessor 'org.projectlombok:lombok:1.18.20'
-
 	testImplementation 'junit:junit:4.12'
-	testImplementation group: 'net.runelite', name:'client', version: runeLiteVersion
-	testImplementation group: 'net.runelite', name:'jshell', version: runeLiteVersion
 
-	compileOnly 'com.example:rbapi:0.0.3'
-	//runtimeOnly 'com.example:rbapi:0.0.3'
-	testImplementation 'com.example:rbapi:0.0.3'
+	compileOnly group: 'net.runelite', name: 'client', version: runeLiteVersion
+	testImplementation group: 'net.runelite', name: 'client', version: runeLiteVersion
+	testImplementation group: 'net.runelite', name: 'jshell', version: runeLiteVersion
 
-	//runtimeOnly group: 'net.runelite', name:'client', version: runeLiteVersion
-	//runtimeOnly 'org.projectlombok:lombok:1.18.20'
-}
-
-task FatJarWithHidden(type: Jar) {
-	baseName = 'RBTemplate'
-	duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-	from { configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) } }
-	with jar
+	compileOnly group: 'com.example', name: 'runebotclientapi', version: rbapiVersion
+	runtimeOnly group: 'com.example', name: 'runebotclientapi', version: rbapiVersion
+	testImplementation group: 'com.example', name: 'runebotclientapi', version: rbapiVersion
 }
 
 group = 'com.example'
-version = '1.0-SNAPSHOT'
+version = pluginVersion
 
 tasks.withType(JavaCompile) {
 	options.encoding = 'UTF-8'
 	options.release.set(11)
+}
+
+def pluginDir = file('src/main/java/net/runelite/client/plugins')
+def plugins = pluginDir.listFiles()?.findAll { it.isDirectory() }?.collect { it.name } ?: []
+
+plugins.each { plugin ->
+	task("${plugin}Jar", type: Jar) {
+		from sourceSets.main.output
+		include "net/runelite/client/plugins/${plugin}/**"
+		archiveBaseName.set("${plugin}")
+		archiveVersion.set(pluginVersion)
+		duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+	}
+}
+
+task buildAllPlugins(type: DefaultTask) {
+	dependsOn plugins.collect { tasks["${it}Jar"] }
 }
